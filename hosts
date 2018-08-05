@@ -1,0 +1,8 @@
+[master]
+k8s-lnx01.il.elminda.com
+k8s-lnx02.il.elminda.com
+k8s-lnx03.il.elminda.com
+
+[worker]
+k8s-lnx04.il.elminda.com
+k8s-lnx05.il.elminda.com

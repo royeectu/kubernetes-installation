@@ -1,0 +1,120 @@
+- hosts: all
+  tasks:
+    - name: kubeadm reset
+      shell: kubeadm reset --force
+
+    - name: remove previous k8s directories files
+      file:
+        path: "{{item}}"
+        state: absent
+      with_items:
+        - /etc/kubernetes
+        - /var/lib/kubelet
+        - /var/lib/etcd
+        - $HOME/.kube
+        - /var/tmp/cluster_initialized.txt
+        - /var/tmp/kubeadm-config.yaml
+
+    - name: create directories for k8s
+      file:
+        path: /etc/kubernetes/pki/etcd
+        state: directory
+
+- hosts: master[0]
+  tasks:
+    - name: copy kubeadm-config.yaml to the 1st master node
+      template:
+        src: kubeadm-config-1st-node.yaml.j2
+        dest: /var/tmp/kubeadm-config.yaml
+
+    - name: run kubeadm init on the 1st master node
+      shell: kubeadm init --config /var/tmp/kubeadm-config.yaml >> cluster_initialized.txt
+      args:
+        chdir: /var/tmp
+        creates: cluster_initialized.txt
+
+    - name: configure kubectl
+      shell: mkdir -p $HOME/.kube && sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config && sudo chown $(id -u):$(id -g) $HOME/.kube/config
+      args:
+        creates: $HOME/.kube/config
+
+    - name: install calico
+      shell: kubectl apply -f https://docs.projectcalico.org/v3.1/getting-started/kubernetes/installation/hosted/kubeadm/1.7/calico.yaml
+
+    - name: deploy k8s dashboard
+      shell: kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/recommended/kubernetes-dashboard.yaml
+
+    - name: copy kubectl settings to other master nodes
+      shell: rsync -rvaz $HOME/.kube {{item}}:/$HOME/
+      with_items:
+        - root@k8s-lnx02
+        - root@k8s-lnx03
+
+    - name: copy certificates, keys and config to other master nodes
+      shell: "{{item}}"
+      with_items:
+        - scp /etc/kubernetes/pki/ca* root@k8s-lnx02:/etc/kubernetes/pki/
+        - scp /etc/kubernetes/pki/sa* root@k8s-lnx02:/etc/kubernetes/pki/ 
+        - scp /etc/kubernetes/pki/front-proxy-ca* root@k8s-lnx02:/etc/kubernetes/pki/
+        - scp /etc/kubernetes/pki/etcd/ca* root@k8s-lnx02:/etc/kubernetes/pki/etcd/
+        - scp /etc/kubernetes/admin.conf root@k8s-lnx02:/etc/kubernetes/
+        - scp /etc/kubernetes/pki/ca* root@k8s-lnx03:/etc/kubernetes/pki/
+        - scp /etc/kubernetes/pki/sa* root@k8s-lnx03:/etc/kubernetes/pki/ 
+        - scp /etc/kubernetes/pki/front-proxy-ca* root@k8s-lnx03:/etc/kubernetes/pki/
+        - scp /etc/kubernetes/pki/etcd/ca* root@k8s-lnx03:/etc/kubernetes/pki/etcd/
+        - scp /etc/kubernetes/admin.conf root@k8s-lnx03:/etc/kubernetes/
+
+- hosts: master[1]
+  tasks:
+    - name: copy kubeadm-config.yaml to the 2nd master node
+      template:
+        src: kubeadm-config-2nd-node.yaml.j2
+        dest: /var/tmp/kubeadm-config.yaml
+
+    - name: connect 2nd master to the cluster
+      shell: "{{item}}"
+      with_items:
+        - kubeadm alpha phase certs all --config /var/tmp/kubeadm-config.yaml
+        - kubeadm alpha phase kubelet config write-to-disk --config /var/tmp/kubeadm-config.yaml
+        - kubeadm alpha phase kubelet write-env-file --config /var/tmp/kubeadm-config.yaml
+        - kubeadm alpha phase kubeconfig kubelet --config /var/tmp/kubeadm-config.yaml
+        - systemctl start kubelet
+        - sleep 60
+        - export KUBECONFIG=/etc/kubernetes/admin.conf
+        - kubectl exec -n kube-system etcd-k8s-lnx01 -- etcdctl --ca-file /etc/kubernetes/pki/etcd/ca.crt --cert-file /etc/kubernetes/pki/etcd/peer.crt --key-file /etc/kubernetes/pki/etcd/peer.key --endpoints=https://k8s-lnx01.il.elminda.com:2379 member add k8s-lnx03 https://k8s-lnx02.il.elminda.com:2380
+        - kubeadm alpha phase etcd local --config /var/tmp/kubeadm-config.yaml
+        - kubeadm alpha phase kubeconfig all --config /var/tmp/kubeadm-config.yaml
+        - kubeadm alpha phase controlplane all --config /var/tmp/kubeadm-config.yaml
+        - kubeadm alpha phase mark-master --config /var/tmp/kubeadm-config.yaml
+
+- hosts: master[2]
+  tasks:
+    - name: copy kubeadm-config.yaml to the 3rd master node
+      template:
+        src: kubeadm-config-3rd-node.yaml.j2
+        dest: /var/tmp/kubeadm-config.yaml
+
+    - name: connect 3rd master to the cluster
+      shell: "{{item}}"
+      with_items:
+        - kubeadm alpha phase certs all --config /var/tmp/kubeadm-config.yaml
+        - kubeadm alpha phase kubelet config write-to-disk --config /var/tmp/kubeadm-config.yaml
+        - kubeadm alpha phase kubelet write-env-file --config /var/tmp/kubeadm-config.yaml
+        - kubeadm alpha phase kubeconfig kubelet --config /var/tmp/kubeadm-config.yaml
+        - systemctl start kubelet
+        - sleep 60
+        - export KUBECONFIG=/etc/kubernetes/admin.conf
+        - kubectl exec -n kube-system etcd-k8s-lnx01 -- etcdctl --ca-file /etc/kubernetes/pki/etcd/ca.crt --cert-file /etc/kubernetes/pki/etcd/peer.crt --key-file /etc/kubernetes/pki/etcd/peer.key --endpoints=https://k8s-lnx01.il.elminda.com:2379 member add k8s-lnx03 https://k8s-lnx03.il.elminda.com:2380
+        - kubeadm alpha phase etcd local --config /var/tmp/kubeadm-config.yaml
+        - kubeadm alpha phase kubeconfig all --config /var/tmp/kubeadm-config.yaml
+        - kubeadm alpha phase controlplane all --config /var/tmp/kubeadm-config.yaml
+        - kubeadm alpha phase mark-master --config /var/tmp/kubeadm-config.yaml
+
+# TODO: 
+# add bash completion
+# calico & dashboard don't install if exists
+# remove hardcoded IP from 2nd config file
+# at the end add command to check cluster status
+# rearrange order
+# add node-role.kubernetes.io/node: ""
+# add helm installer
