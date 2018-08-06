@@ -14,6 +14,10 @@
         - $HOME/.kube
         - /var/tmp/cluster_initialized.txt
         - /var/tmp/kubeadm-config.yaml
+        - /etc/cni
+        - /opt/cni
+        - /var/etcd
+        - /var/lib/calico
 
     - name: create directories for k8s
       file:
@@ -38,8 +42,16 @@
       args:
         creates: $HOME/.kube/config
 
+    - name: copy calico.yaml file
+      copy:
+        src: files/calico.yaml
+        dest: /var/tmp/calico.yaml 
+
     - name: install calico
-      shell: kubectl apply -f https://docs.projectcalico.org/v3.1/getting-started/kubernetes/installation/hosted/kubeadm/1.7/calico.yaml
+      shell: "{{item}}"
+      with_items:
+        - kubectl apply -f https://docs.projectcalico.org/v3.1/getting-started/kubernetes/installation/hosted/rbac-kdd.yaml
+        - kubectl apply -f /var/tmp/calico.yaml
 
     - name: deploy k8s dashboard
       shell: kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/recommended/kubernetes-dashboard.yaml
