@@ -51,6 +51,7 @@
       shell: "{{item}}"
       with_items:
         - kubectl apply -f https://docs.projectcalico.org/v3.1/getting-started/kubernetes/installation/hosted/rbac-kdd.yaml
+        #- kubectl apply -f https://docs.projectcalico.org/v3.1/getting-started/kubernetes/installation/hosted/kubernetes-datastore/calico-networking/1.7/calico.yaml
         - kubectl apply -f /var/tmp/calico.yaml
 
     - name: deploy k8s dashboard
@@ -114,7 +115,6 @@
         - kubeadm alpha phase kubelet write-env-file --config /var/tmp/kubeadm-config.yaml
         - kubeadm alpha phase kubeconfig kubelet --config /var/tmp/kubeadm-config.yaml
         - systemctl start kubelet
-        - sleep 60
         - export KUBECONFIG=/etc/kubernetes/admin.conf
         - kubectl exec -n kube-system etcd-k8s-lnx01 -- etcdctl --ca-file /etc/kubernetes/pki/etcd/ca.crt --cert-file /etc/kubernetes/pki/etcd/peer.crt --key-file /etc/kubernetes/pki/etcd/peer.key --endpoints=https://k8s-lnx01.il.elminda.com:2379 member add k8s-lnx03 https://k8s-lnx03.il.elminda.com:2380
         - kubeadm alpha phase etcd local --config /var/tmp/kubeadm-config.yaml
