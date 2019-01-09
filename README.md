@@ -1,6 +1,6 @@
 # Kubernetes Installation
 
-This repository will run Ansible playbook to install Kubernetes.
+This repository will run Ansible playbook to install Kubernetes (version: 1.12.4).
 Currently, there are 3 playbooks:
 
 * dependencies.yml - will configure the OS & install required packages: Docker, kubelet, kubeadm, kubectl
