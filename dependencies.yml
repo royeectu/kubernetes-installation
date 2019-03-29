@@ -66,6 +66,12 @@
         state: started
         enabled: yes
 
+    - name: install kubectl
+      yum:
+        name: kubectl-1.12.4-0.x86_64
+        state: present
+        update_cache: yes
+
     - name: ensure net.bridge.bridge-nf-call-ip6tables is set to 1
       sysctl:
         name: net.bridge.bridge-nf-call-ip6tables
