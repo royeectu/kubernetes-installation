@@ -60,12 +60,6 @@
         state: present
         update_cache: yes
 
-    - name: install kubectl
-      yum:
-        name: kubectl-1.12.4-0.x86_64
-        state: present
-        update_cache: yes
-
     - name: start & enable kubelet daemon
       service:
         name: kubelet
